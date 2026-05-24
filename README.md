@@ -187,39 +187,6 @@ One thing worth noting on the state side: per-frame landmark history lives in `u
 
 ---
 
-## Deployment
 
-MediaPipe uses `SharedArrayBuffer` internally, which browsers require two HTTP headers to allow:
-
-```
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
-```
-
-Vite sets these automatically in dev. For production:
-
-**Vercel (`vercel.json`):**
-```json
-{
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
-      ]
-    }
-  ]
-}
-```
-
-**Netlify (`netlify.toml`):**
-```toml
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "require-corp"
-```
 
 > **GitHub Pages** doesn't support custom COOP/COEP headers. You'll need a Service Worker wrapper like `coi-serviceworker` to mock the secure context.
