@@ -189,4 +189,4 @@ One thing worth noting on the state side: per-frame landmark history lives in `u
 
 
 
-> **GitHub Pages** doesn't support custom COOP/COEP headers. You'll need a Service Worker wrapper like `coi-serviceworker` to mock the secure context.
+
