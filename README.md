@@ -10,7 +10,7 @@ A real-time gesture recognition app that triggers Apple FaceTime-style floating 
 
 Ripple captures your webcam feed, tracks body and hand landmarks in real time, and matches coordinate relationships against deterministic geometric rules. When a gesture passes the check, a burst of corresponding emojis rises from the bottom of the screen via Framer Motion.
 
-This was built as an internship technical assessment. The brief was to build something combining computer vision, real-time rendering, and a clean UI — without a backend.
+This was built as an internship technical assessment. The brief was to build something combining computer vision, real-time rendering, and a clean UI without a backend.
 
 Everything runs client-side. No webcam frames, landmark coordinates, or telemetry leave your device. Gesture classification uses geometric rules rather than continuous neural network inference, which keeps the frame rate stable on average hardware.
 
