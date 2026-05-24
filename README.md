@@ -22,7 +22,17 @@ Everything runs client-side. No webcam frames, landmark coordinates, or telemetr
 
 ## Live demo
 
-https://github.com/user-attachments/assets/7c41581c-cf7b-4597-9af5-5829434ebc5b
+
+
+https://github.com/user-attachments/assets/c6746714-af08-433a-8468-8c4cb8328bc0
+
+
+
+https://github.com/user-attachments/assets/86f875ac-7d4a-4a2f-985a-eb325bb2a5f0
+
+
+
+
 
 Camera access via `getUserMedia` only works in secure contexts — `localhost` or an `https://` domain. Double-clicking the HTML file won't work.
 
