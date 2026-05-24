@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
+  detectCelebrate,
   detectHeart,
   detectThumbsUp,
   detectThumbsDown,
@@ -27,8 +28,83 @@ function makeHand(overrides = {}) {
 
 /** Default hold counter object (all zeros). */
 function zeroCounters() {
-  return { heartHoldFrames: 0, thumbsUpHoldFrames: 0, thumbsDownHoldFrames: 0, rockOnHoldFrames: 0, peaceHoldFrames: 0 }
+  return { celebrateHoldFrames: 0, heartHoldFrames: 0, thumbsUpHoldFrames: 0, thumbsDownHoldFrames: 0, rockOnHoldFrames: 0, peaceHoldFrames: 0 }
 }
+
+// ─── detectCelebrate ──────────────────────────────────────────────────────────
+
+describe('detectCelebrate', () => {
+  // Shared: both wrists raised well above shoulders
+  function raisedPose() {
+    const pose = Array.from({ length: 33 }, () => lm(0.5, 0.5))
+    pose[11] = lm(0.3, 0.5)  // left shoulder
+    pose[12] = lm(0.7, 0.5)  // right shoulder
+    pose[15] = lm(0.2, 0.3)  // left wrist — 0.2 above shoulder threshold ✓
+    pose[16] = lm(0.8, 0.3)  // right wrist — 0.2 above shoulder threshold ✓
+    return pose
+  }
+
+  // A fist hand: all fingertips below their MCP knuckles
+  function fistHand() {
+    return makeHand({
+      5: lm(0.5, 0.4), 8:  lm(0.5, 0.6),
+      9: lm(0.5, 0.4), 12: lm(0.5, 0.6),
+      13: lm(0.5, 0.4), 16: lm(0.5, 0.6),
+      17: lm(0.5, 0.4), 20: lm(0.5, 0.6),
+    })
+  }
+
+  // An open hand: index tip above MCP (finger extended) — as in heart pose
+  function openHand() {
+    return makeHand({
+      5: lm(0.5, 0.5), 8: lm(0.5, 0.2),
+    })
+  }
+
+  it('returns detected:false when pose is missing', () => {
+    const r1 = detectCelebrate({ pose: null, leftHand: null, rightHand: null }, zeroCounters())
+    expect(r1.detected).toBe(false)
+  })
+
+  it('increments counter when conditions pass, fires after 8 frames', () => {
+    const frame = { pose: raisedPose(), leftHand: fistHand(), rightHand: null }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectCelebrate(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(true)
+    expect(result.updatedCounters.celebrateHoldFrames).toBe(0)
+  })
+
+  it('does not fire with open hands (heart pose)', () => {
+    const frame = { pose: raisedPose(), leftHand: openHand(), rightHand: openHand() }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectCelebrate(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(false)
+  })
+
+  it('resets counter when conditions fail mid-hold', () => {
+    const goodFrame = { pose: raisedPose(), leftHand: fistHand(), rightHand: null }
+    const badFrame  = { pose: raisedPose(), leftHand: openHand(), rightHand: null }
+    let counters = zeroCounters()
+    for (let i = 0; i < 5; i++) {
+      counters = detectCelebrate(goodFrame, counters).updatedCounters
+    }
+    expect(counters.celebrateHoldFrames).toBe(5)
+    const r = detectCelebrate(badFrame, counters)
+    expect(r.updatedCounters.celebrateHoldFrames).toBe(0)
+    expect(r.detected).toBe(false)
+  })
+})
+
+
+
 
 // ─── detectHeart ──────────────────────────────────────────────────────────────
 
@@ -145,6 +221,42 @@ describe('detectThumbsUp', () => {
     const { detected } = detectThumbsUp(frame, zeroCounters())
     expect(detected).toBe(false)
   })
+  it('does not fire when BOTH hands are raised near/above shoulder level (Celebrate pose)', () => {
+    const hand = makeThumbsUpHand()
+    const frame = {
+      leftHand: hand,
+      rightHand: null,
+      pose: {
+        11: lm(0.5, 0.4),  // left shoulder
+        12: lm(0.5, 0.4),  // right shoulder
+        15: lm(0.5, 0.3),  // left wrist (above shoulder)
+        16: lm(0.5, 0.3),  // right wrist (above shoulder)
+      }
+    }
+    const { detected } = detectThumbsUp(frame, zeroCounters())
+    expect(detected).toBe(false)
+  })
+
+  it('fires when only ONE hand is raised high (e.g. thumbs up beside face)', () => {
+    const hand = makeThumbsUpHand()
+    const frame = {
+      leftHand: hand,
+      rightHand: null,
+      pose: {
+        11: lm(0.5, 0.4),  // left shoulder
+        12: lm(0.5, 0.4),  // right shoulder
+        15: lm(0.5, 0.3),  // left wrist (above shoulder)
+        16: lm(0.5, 0.6),  // right wrist (below shoulder)
+      }
+    }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectThumbsUp(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(true)
+  })
 })
 
 // ─── detectThumbsDown ────────────────────────────────────────────────────────
@@ -188,6 +300,86 @@ describe('detectThumbsDown', () => {
     const frame = { leftHand: thumbsUpHand, rightHand: null }
     const { detected } = detectThumbsDown(frame, zeroCounters())
     expect(detected).toBe(false)
+  })
+
+  it('does not fire when fingers are not curled', () => {
+    // Thumb points down, but index finger is extended
+    const hand = makeHand({
+      0: lm(0.5, 0.2),  // wrist (high in frame)
+      2: lm(0.5, 0.3),  // thumb MCP
+      3: lm(0.5, 0.5),  // thumb IP
+      4: lm(0.5, 0.7),  // thumb tip — pointing down
+      5: lm(0.5, 0.4),
+      8: lm(0.5, 0.2),  // index tip ABOVE MCP (pointing up/not curled)
+    })
+    const frame = { leftHand: hand, rightHand: null }
+    const { detected } = detectThumbsDown(frame, zeroCounters())
+    expect(detected).toBe(false)
+  })
+
+  it('fires when the arm is raised high (wrist is below the hand)', () => {
+    // High-arm thumbs down: wrist at bottom (large y), thumb points down, other fingers curled
+    const raisedHand = makeHand({
+      0:  lm(0.5, 0.8),  // wrist (low in frame, bottom of hand)
+      2:  lm(0.5, 0.4),  // thumb MCP
+      3:  lm(0.5, 0.5),  // thumb IP
+      4:  lm(0.5, 0.6),  // thumb tip — pointing down (higher y than MCP/IP but lower than wrist)
+      5:  lm(0.5, 0.3),  // index MCP
+      8:  lm(0.5, 0.4),  // index tip (below MCP)
+      9:  lm(0.5, 0.3),  // middle MCP
+      12: lm(0.5, 0.4),  // middle tip (below MCP)
+      13: lm(0.5, 0.3),  // ring MCP
+      16: lm(0.5, 0.4),  // ring tip (below MCP)
+      17: lm(0.5, 0.3),  // pinky MCP
+      20: lm(0.5, 0.4),  // pinky tip (below MCP)
+    })
+    const frame = { leftHand: raisedHand, rightHand: null }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectThumbsDown(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(true)
+  })
+
+  it('fires when the hand is tilted sideways (fingers curl horizontally)', () => {
+    // 90-degree rotated thumbs down: wrist on the right, knuckles on the left.
+    // Thumb points straight down, other fingers curl horizontally (same y-level as knuckles).
+    const tiltedHand = makeHand({
+      0:  lm(0.8, 0.5),  // wrist (on the right)
+      2:  lm(0.6, 0.4),  // thumb MCP
+      3:  lm(0.6, 0.5),  // thumb IP
+      4:  lm(0.6, 0.6),  // thumb tip — pointing down (vertical y progression)
+      5:  lm(0.6, 0.5),  // index MCP
+      8:  lm(0.7, 0.5),  // index tip (curled horizontally, same y-level as knuckle)
+      9:  lm(0.6, 0.5),  // middle MCP
+      12: lm(0.7, 0.5),  // middle tip (curled horizontally)
+      13: lm(0.6, 0.5),  // ring MCP
+      16: lm(0.7, 0.5),  // ring tip (curled horizontally)
+      17: lm(0.6, 0.5),  // pinky MCP
+      20: lm(0.7, 0.5),  // pinky tip (curled horizontally)
+    })
+    const frame = { leftHand: tiltedHand, rightHand: null }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectThumbsDown(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(true)
+  })
+
+  it('does not fire when BOTH hands have thumbs down (heart 🫶 pose)', () => {
+    const frame = { leftHand: makeThumbsDownHand(), rightHand: makeThumbsDownHand() }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = detectThumbsDown(frame, counters)
+      counters = result.updatedCounters
+    }
+    expect(result.detected).toBe(false)
+    expect(result.updatedCounters.thumbsDownHoldFrames).toBe(0)
   })
 })
 
@@ -369,5 +561,28 @@ describe('classifyGesture', () => {
     const result = classifyGesture({ frameBuffer: [frame], holdCounters: counters, lastEmoteFiredAt: recentFire })
     expect(result.updatedHoldCounters.heartHoldFrames).toBe(0)
     expect(result.updatedHoldCounters.thumbsUpHoldFrames).toBe(0)
+  })
+
+  it('classifies celebrate after 8 frames of raised fists', () => {
+    const pose = Array.from({ length: 33 }, () => lm(0.5, 0.5))
+    pose[11] = lm(0.3, 0.5)
+    pose[12] = lm(0.7, 0.5)
+    pose[15] = lm(0.2, 0.3)
+    pose[16] = lm(0.8, 0.3)
+    const fist = makeHand({
+      5: lm(0.5, 0.4), 8:  lm(0.5, 0.6),
+      9: lm(0.5, 0.4), 12: lm(0.5, 0.6),
+      13: lm(0.5, 0.4), 16: lm(0.5, 0.6),
+      17: lm(0.5, 0.4), 20: lm(0.5, 0.6),
+    })
+    const frame = { timestamp: Date.now(), pose, face: null, leftHand: fist, rightHand: null }
+    let counters = zeroCounters()
+    let result
+    for (let i = 0; i < 8; i++) {
+      result = classifyGesture({ frameBuffer: [frame], holdCounters: counters, lastEmoteFiredAt: 0 })
+      counters = result.updatedHoldCounters
+    }
+    expect(result.gesture).toBe('celebrate')
+    expect(result.confidence).toBe(95)
   })
 })

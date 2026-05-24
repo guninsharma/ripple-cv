@@ -1,5 +1,12 @@
 // ─── Gesture definitions ─────────────────────────────────────────────────────
 export const GESTURES = {
+  celebrate: {
+    id: 'celebrate',
+    emote: '🎉',
+    name: 'Celebrate',
+    desc: 'Raise both fists above your head!',
+    color: '#eab308',
+  },
   heart: {
     id: 'heart',
     emote: '❤️',

@@ -32,7 +32,7 @@ Open `http://localhost:5173` in Chrome or Edge.
 
 - Real-time webcam capture with camera permission handling
 - MediaPipe Holistic tracking — 33 pose keypoints and 21 hand joints per hand
-- 7 gestures (see table below)
+- 8 gestures (see table below)
 - Floating emoji reactions animated with Framer Motion
 - Live skeleton overlay with a sidebar toggle
 - Motion intensity meter reflecting actual landmark velocity per frame
@@ -45,6 +45,7 @@ Open `http://localhost:5173` in Chrome or Edge.
 
 | Emoji | Gesture | How to trigger |
 | :---: | :--- | :--- |
+| 🎉 | Celebrate | Raise both wrists above shoulder level with at least one hand in a fist |
 | ❤️ | Heart | Bring both index fingertips and both thumb tips close together at center frame |
 | 👍 | Thumbs up | Extend thumb straight up, curl index through pinky |
 | 👎 | Thumbs down | Extend thumb straight down, curl index through pinky |

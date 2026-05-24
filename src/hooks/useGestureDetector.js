@@ -26,6 +26,7 @@ export function useGestureDetector(results) {
 
   // Hold counters for static-pose gestures
   const holdCountersRef = useRef({
+    celebrateHoldFrames:  0,
     heartHoldFrames:      0,
     thumbsUpHoldFrames:   0,
     thumbsDownHoldFrames: 0,

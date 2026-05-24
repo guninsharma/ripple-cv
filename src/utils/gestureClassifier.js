@@ -6,7 +6,7 @@
  *
  * Exports:
  *   classifyGesture({ frameBuffer, holdCounters, lastEmoteFiredAt }) → result
- *   detectHeart / detectThumbsUp / detectThumbsDown / detectLasers — for unit tests
+ *   detectCelebrate / detectHeart / detectThumbsUp / detectThumbsDown / detectLasers — for unit tests
  *   detectAngry / detectScared / detectWave — for unit tests
  */
 
@@ -18,6 +18,30 @@ import { THRESHOLDS } from './constants.js'
 function dist2D(a, b) {
   if (!a || !b) return Infinity
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+}
+
+/**
+ * Checks if the fingers (index, middle, ring, pinky) on a hand are curled into a fist.
+ * Supports both vertical checks (for upright/inverted hands) and rotation-invariant
+ * 2D distance ratios (for hands tilted sideways or beside the face).
+ */
+function isFingersCurled(hand) {
+  if (!hand) return false
+  const handSize = dist2D(hand[0], hand[9])
+  const fingers = [
+    { tip: 8, mcp: 5 },
+    { tip: 12, mcp: 9 },
+    { tip: 16, mcp: 13 },
+    { tip: 20, mcp: 17 }
+  ]
+  for (const f of fingers) {
+    const verticalCurl = hand[f.tip].y > hand[f.mcp].y
+    const distanceCurl = dist2D(hand[f.tip], hand[f.mcp]) < handSize * 0.7
+    if (!verticalCurl && !distanceCurl) {
+      return false
+    }
+  }
+  return true
 }
 
 /**
@@ -53,6 +77,47 @@ function countOscillationReversals(xs, ts, noiseDelta, windowMs) {
 }
 
 // ─── Static pose detectors (hold-based) ──────────────────────────────────────
+
+/**
+ * Celebrate 🎉
+ * Both wrists raised above shoulder level AND at least one hand forming a fist.
+ * Hold-based: must persist for holdFramesRequired consecutive frames to fire.
+ * @param {object}        frame         - current buffer frame
+ * @param {object}        holdCounters  - mutable counter object
+ */
+export function detectCelebrate(frame, holdCounters) {
+  const pose = frame.pose
+  let passed = false
+
+  if (
+    pose &&
+    pose[11] &&
+    pose[12] &&
+    pose[15] &&
+    pose[16]
+  ) {
+    const leftShoulderY  = pose[11].y
+    const rightShoulderY = pose[12].y
+    const leftWristY     = pose[15].y
+    const rightWristY    = pose[16].y
+
+    const wristsRaised = leftWristY < leftShoulderY - 0.12 && rightWristY < rightShoulderY - 0.12
+
+    if (wristsRaised) {
+      // At least one visible hand must be making a fist (curled fingers)
+      if (isFingersCurled(frame.leftHand) || isFingersCurled(frame.rightHand)) {
+        passed = true
+      }
+    }
+  }
+
+  const newCount = passed ? holdCounters.celebrateHoldFrames + 1 : 0
+  const fired    = newCount >= THRESHOLDS.holdFramesRequired
+  return {
+    detected: fired,
+    updatedCounters: { ...holdCounters, celebrateHoldFrames: fired ? 0 : newCount },
+  }
+}
 
 /**
  * Emote 1 — Heart ❤️
@@ -98,10 +163,27 @@ export function detectHeart(frame, holdCounters) {
  */
 export function detectThumbsUp(frame, holdCounters) {
   const hands = [frame.leftHand, frame.rightHand]
+  const pose = frame.pose
   let passed = false
+
+  // Guard against Celebrate: do not detect thumbs-up if BOTH wrists are raised near/above shoulder level
+  if (pose && pose[11] && pose[12] && pose[15] && pose[16]) {
+    const leftWristY     = pose[15].y
+    const rightWristY    = pose[16].y
+    const leftShoulderY  = pose[11].y
+    const rightShoulderY = pose[12].y
+    if (leftWristY < leftShoulderY + 0.1 && rightWristY < rightShoulderY + 0.1) {
+      const newCount = 0
+      return {
+        detected: false,
+        updatedCounters: { ...holdCounters, thumbsUpHoldFrames: newCount },
+      }
+    }
+  }
 
   for (const hand of hands) {
     if (!hand) continue
+
     // Thumb extended upward
     if (
       hand[4].y < hand[3].y &&
@@ -109,12 +191,7 @@ export function detectThumbsUp(frame, holdCounters) {
       hand[4].y < hand[0].y
     ) {
       // All fingers curled (fist)
-      if (
-        hand[8].y  > hand[5].y  &&
-        hand[12].y > hand[9].y  &&
-        hand[16].y > hand[13].y &&
-        hand[20].y > hand[17].y
-      ) {
+      if (isFingersCurled(hand)) {
         passed = true
         break
       }
@@ -132,25 +209,40 @@ export function detectThumbsUp(frame, holdCounters) {
 /**
  * Emote 3 — Thumbs Down 👎
  * One hand: thumb pointing down, all other fingers curled.
+ * Guard: if BOTH hands have thumbs pointing down, skip — that's a heart (🫶), not a thumbs-down.
  */
 export function detectThumbsDown(frame, holdCounters) {
-  const hands = [frame.leftHand, frame.rightHand]
+  const lh = frame.leftHand
+  const rh = frame.rightHand
   let passed = false
 
+  // Guard: when both hands are visible and both thumbs point down,
+  // the user is most likely forming a heart shape (🫶), not giving thumbs-down.
+  function thumbDown(hand) {
+    return hand && hand[4].y > hand[3].y && hand[3].y > hand[2].y
+  }
+  if (lh && rh && thumbDown(lh) && thumbDown(rh)) {
+    // Both thumbs down → likely heart pose, reject
+    const newCount = 0
+    return {
+      detected: false,
+      updatedCounters: { ...holdCounters, thumbsDownHoldFrames: newCount },
+    }
+  }
+
+  const hands = [lh, rh]
   for (const hand of hands) {
     if (!hand) continue
-    // Thumb extended downward: tip → IP → MCP all have increasing y (downward in frame)
-    // and thumb tip must be clearly below the wrist.
-    // Fist check intentionally omitted: when inverted for thumbs-down, curled fingertips
-    // sit ABOVE their MCPs (tip.y < MCP.y), opposite to thumbs-up orientation.
-    // The thumb-direction hold for 7 frames is sufficiently distinctive.
+    // Thumb extended downward: tip → IP → MCP all have increasing y (downward in frame).
+    // Also requires all other fingers to be curled (fist).
     if (
       hand[4].y > hand[3].y &&
-      hand[3].y > hand[2].y &&
-      hand[4].y > hand[0].y
+      hand[3].y > hand[2].y
     ) {
-      passed = true
-      break
+      if (isFingersCurled(hand)) {
+        passed = true
+        break
+      }
     }
   }
 
@@ -298,6 +390,7 @@ export function classifyGesture({ frameBuffer, holdCounters, lastEmoteFiredAt })
       gesture: 'none',
       confidence: 0,
       updatedHoldCounters: {
+        celebrateHoldFrames: 0,
         heartHoldFrames:     0,
         thumbsUpHoldFrames:  0,
         thumbsDownHoldFrames: 0,
@@ -322,7 +415,14 @@ export function classifyGesture({ frameBuffer, holdCounters, lastEmoteFiredAt })
     return { gesture: 'heart', confidence: 95, updatedHoldCounters: updatedCounters, updatedLastEmoteFiredAt: now }
   }
 
-  // ── Priority 2: Scared ─────────────────────────────────────────────────────
+  // ── Priority 2: Celebrate ──────────────────────────────────────────────────
+  const celebrateResult = detectCelebrate(currentFrame, updatedCounters)
+  updatedCounters       = celebrateResult.updatedCounters
+  if (celebrateResult.detected) {
+    return { gesture: 'celebrate', confidence: 95, updatedHoldCounters: updatedCounters, updatedLastEmoteFiredAt: now }
+  }
+
+  // ── Priority 3: Scared ─────────────────────────────────────────────────────
   if (detectScared(frameBuffer)) {
     return { gesture: 'scared', confidence: 90, updatedHoldCounters: updatedCounters, updatedLastEmoteFiredAt: now }
   }
