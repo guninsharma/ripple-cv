@@ -60,14 +60,14 @@ describe('detectHeart', () => {
     expect(updatedCounters.heartHoldFrames).toBe(1)
   })
 
-  it('fires after 7 consecutive passing frames', () => {
+  it('fires after 8 consecutive passing frames', () => {
     const lh = makeHand({ 4: lm(0.47, 0.50), 8: lm(0.48, 0.38) })
     const rh = makeHand({ 4: lm(0.53, 0.50), 8: lm(0.52, 0.38) })
     const frame = { leftHand: lh, rightHand: rh }
 
     let counters = zeroCounters()
     let result
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 8; i++) {
       result = detectHeart(frame, counters)
       counters = result.updatedCounters
     }
@@ -119,12 +119,12 @@ describe('detectThumbsUp', () => {
     })
   }
 
-  it('fires after 7 frames with a valid thumbs-up', () => {
+  it('fires after 8 frames with a valid thumbs-up', () => {
     const hand  = makeThumbsUpHand()
     const frame = { leftHand: hand, rightHand: null }
     let counters = zeroCounters()
     let result
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 8; i++) {
       result = detectThumbsUp(frame, counters)
       counters = result.updatedCounters
     }
@@ -167,11 +167,11 @@ describe('detectThumbsDown', () => {
     })
   }
 
-  it('fires after 7 frames with a valid thumbs-down', () => {
+  it('fires after 8 frames with a valid thumbs-down', () => {
     const frame = { leftHand: makeThumbsDownHand(), rightHand: null }
     let counters = zeroCounters()
     let result
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 8; i++) {
       result = detectThumbsDown(frame, counters)
       counters = result.updatedCounters
     }
@@ -207,11 +207,11 @@ describe('detectLasers', () => {
     })
   }
 
-  it('fires after 7 frames of rock-on pose', () => {
+  it('fires after 8 frames of rock-on pose', () => {
     const frame = { leftHand: makeRockOnHand(), rightHand: null }
     let counters = zeroCounters()
     let result
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 8; i++) {
       result = detectLasers(frame, counters)
       counters = result.updatedCounters
     }

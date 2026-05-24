@@ -81,7 +81,7 @@ export const HAND_CONNECTIONS = [
 export const THRESHOLDS = {
   // Global timing
   globalCooldown: 800,           // ms between any emote firing
-  holdFramesRequired: 7,         // frames a static pose must be held (~0.23s)
+  holdFramesRequired: 8,         // frames a static pose must be held (~0.27s)
   bufferSize: 30,                // rolling frame history length
 
   // Heart
