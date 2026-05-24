@@ -1,3 +1,7 @@
+
+
+
+
 # Ripple
 
 A real-time gesture recognition app that triggers Apple FaceTime-style floating emoji reactions using your webcam and Google MediaPipe.
@@ -17,6 +21,8 @@ Everything runs client-side. No webcam frames, landmark coordinates, or telemetr
 ---
 
 ## Live demo
+
+https://github.com/user-attachments/assets/7c41581c-cf7b-4597-9af5-5829434ebc5b
 
 Camera access via `getUserMedia` only works in secure contexts — `localhost` or an `https://` domain. Double-clicking the HTML file won't work.
 
